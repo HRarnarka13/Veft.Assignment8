@@ -1,20 +1,20 @@
 #!/bin/bash
 
 # Set up users
-curl -XPOST -d "{ \"name\" : \"Eysteinn\", \"token\" : \"testToken\", \"age\" : 23, \"gender\" : \"m\" }" -H "Content-Type: Application/json" http://localhost:3000/api/users
-echo
-curl -XPOST -d "{ \"name\" : \"Arnar\", \"token\" : \"testToken\", \"age\" : 22, \"gender\" : \"m\" }" -H "Content-Type: Application/json" http://localhost:3000/api/users
-echo
-echo "http://localhost:3000/api/users"
-curl -XGET http://localhost:3000/api/users
+# curl -XPOST -d "{ \"name\" : \"Eysteinn\", \"token\" : \"testToken\", \"age\" : 23, \"gender\" : \"m\" }" -H "Content-Type: Application/json" http://localhost:3000/api/users
+# echo
+# curl -XPOST -d "{ \"name\" : \"Arnar\", \"token\" : \"testToken\", \"age\" : 22, \"gender\" : \"m\" }" -H "Content-Type: Application/json" http://localhost:3000/api/users
+# echo
+# echo "http://localhost:3000/api/users"
+# curl -XGET http://localhost:3000/api/users
 # Set up companies
-# echo
-# curl -XPOST -d "{ \"name\" : \"Glo\", \"description\" : \"glo er gott\", \"punchcard_liftime\" : 10 }" -H "Content-Type: Application/json" http://localhost:3000/api/companies
-# echo
-# curl -XPOST -d "{ \"name\" : \"Serrano\", \"description\" : \"Fresh, happy, mex\", \"punchcard_liftime\" : 10 }" -H "Content-Type: Application/json" http://localhost:3000/api/companies
-# echo
-# echo "http://localhost:3000/api/companies"
-# curl -XGET http://localhost:3000/api/companies
+echo
+curl -XPOST -d "{ \"name\" : \"Glo\", \"description\" : \"glo er gott\", \"punchcard_liftime\" : 10 }" -H "Content-Type: Application/json" -H "ADMIN_TOKEN: rssiprmp" http://localhost:3000/api/companies
+echo
+curl -XPOST -d "{ \"name\" : \"Serrano\", \"description\" : \"fresh happy mex\", \"punchcard_liftime\" : 10 }" -H "Content-Type: Application/json" -H "ADMIN_TOKEN: rssiprmp" http://localhost:3000/api/companies
+echo
+echo "http://localhost:3000/api/companies"
+curl -XGET http://localhost:3000/api/companies
 
 # echo
 # echo "http://localhost:3000/api/companies/0"

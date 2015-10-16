@@ -9,6 +9,9 @@ const app = express();
 
 const url = 'http://localhost:' + port + '/api';
 
+const adminToken = 'rssiprmp';
+
+
 app.use(bodyParser.json());
 
 // A list of companies
@@ -66,34 +69,57 @@ app.delete('/api/companies', (req, res) => {
     });
 });
 
-// Adds a new company
+// Adds a new company to the database
+// Example input : { name: "Glo", description : "Healty goodshit", punchcard_liftime: 10 }
 app.post('/api/companies', (req, res) => {
-    if (!req.body.hasOwnProperty('name')) {
-        res.status(412).send('missing attribute: name');
-        return;
-    }
-    if (!req.body.hasOwnProperty('description')) {
-        res.status(412).send('missing attribute: description');
-        return;
-    }
-    if (!req.body.hasOwnProperty('punchcard_liftime')) {
-        res.status(412).send('missing attribute: punchcard_liftime');
-        return;
-    }
-
-    let company = {
-        name: req.body.name,
-        description: req.body.description,
-        punchcard_liftime: req.body.punchcard_liftime
-    };
-    db.addCompany(company, (err, dbrs) => {
-        if (err) {
-            res.status(500).send('Error adding company');
+    // Check if the admin token is set and correct
+    if (req.headers.hasOwnProperty('admin_token') && req.headers.admin_token === adminToken)
+    {
+        // Check if the requst body attributes are correct and their types are correct
+        if (!req.body.hasOwnProperty('name')) {
+            res.status(412).send('missing attribute: name');
+            return;
+        } else if (typeof req.body.name !== 'string' && req.body.name instanceof String === false) {
+            res.status(412).send('invalid type for attribute name');
             return;
         }
-        console.log(dbrs);
-        res.status(201).send(dbrs.insertedIds);
-    });
+        if (!req.body.hasOwnProperty('description')) {
+            res.status(412).send('missing attribute: description');
+            return;
+        } else if (typeof req.body.description !== 'string' && req.body.description instanceof String === false) {
+            res.status(412).send('invalid type for attribute description');
+            return;
+        }
+        if (!req.body.hasOwnProperty('punchcard_liftime')) {
+            res.status(412).send('missing attribute: punchcard_liftime');
+            return;
+        } else if (typeof req.body.punchcard_liftime !== 'number' && req.body.punchcard_liftime instanceof Number === false) {
+            res.status(412).send('invalid type for attribute punchcard_liftime');
+            return;
+        }
+
+        // Create a company object
+        let company = {
+            name: req.body.name,
+            description: req.body.description,
+            punchcard_liftime: req.body.punchcard_liftime
+        };
+        // Add the new company to database
+        db.addCompany(company, (err, dbrs) => {
+            if (err) {
+                res.status(500).send('Error accured when adding company');
+                return;
+            }
+            // Check if the company id is in the response
+            if (dbrs.insertedCount === 1 && dbrs.insertedIds[0]) {
+                res.status(201).send({'company_id' : dbrs.insertedIds[0]});
+            } else {
+                res.status(412).send('Only add one company at a time');
+            }
+        });
+    } else {
+        res.status(401).send('Admin token missing or incorrect');
+    }
 });
 
 // Returns a given company by id.
