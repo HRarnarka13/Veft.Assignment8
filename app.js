@@ -111,6 +111,28 @@ const getUsers = (cb) => {
     });
 };
 
+const getUserByToken = (token, cb) => {
+    MongoClient.connect(url, (err, db) => {
+        if (err) {
+            cb(err);
+            db.close();
+            return;
+        }
+
+        const collection = db.collection('users');
+        collection.findOne({ 'token' : token }, (err, user) => {
+            if (err) {
+                cb(err);
+                db.close();
+                return;
+            }
+            cb(null, user);
+            db.close();
+            return;
+        });
+    });
+};
+
 const addUser = (user, cb) => {
     MongoClient.connect(url, (err, db) => {
         if (err) {
@@ -134,11 +156,61 @@ const addUser = (user, cb) => {
 };
 // </USERS>
 
+// <punchcard>
+const addPunch = (punch, cb) => {
+    MongoClient.connect(url, (err, db) => {
+        if (err) {
+            cb(err);
+            db.close();
+            return;
+        }
+
+        const collection = db.collection('punchcards');
+        collection.insert(punch, (err, res) => {
+            if (err) {
+                cb(err);
+                db.close();
+                return;
+            }
+            cb(null, res);
+            db.close();
+            return;
+        });
+    });
+};
+
+const getPunchByUserAndCompany = (user_id, company_id, cb) => {
+    MongoClient.connect(url, (err, db) => {
+        if (err) {
+            cb(err);
+            db.close();
+            return;
+        }
+
+        const collection = db.collection('punchcards');
+        collection.findOne({ 'user_id' : user_id, 'company_id' : company_id }, (err, punch) => {
+            if (err) {
+                cb(err);
+                db.close();
+                return;
+            }
+            cb(null, punch);
+            db.close();
+            return;
+        });
+    });
+};
+
+// </punchcard>
+
 module.exports = {
     getCompanies : getCompanies,
     getCompanyById : getCompanyById,
     addCompany : addCompany,
     removeAllCompanies : removeAllCompanies,
     getUsers : getUsers,
+    getUserByToken: getUserByToken,
     addUser : addUser,
+    addPunch : addPunch,
+    getPunchByUserAndCompany : getPunchByUserAndCompany,
 };

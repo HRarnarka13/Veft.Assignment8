@@ -2,49 +2,16 @@
 
 const express = require('express');
 const bodyParser = require('body-parser');
-const _ = require('lodash');
 const db = require('./app.js');
 const port = 3000;
 const app = express();
 
-const url = 'http://localhost:' + port + '/api';
+// const url = 'http://localhost:' + port + '/api';
 
 const adminToken = 'rssiprmp';
 
 
 app.use(bodyParser.json());
-
-// A list of companies
-let companies = [];
-let users = [];
-let punches = [];
-
-// Returns an array of UserPunchesDTO objects
-function getUserPunchesDTO(userPunches) {
-    const punchesDTO = [];
-    _.forEach(userPunches, (punch) => {
-        const company = getCompanyById(punch.companyId);
-        if (company) {
-            punchesDTO.push({
-                company: company.name,
-                date: punch.date
-            });
-        }
-    });
-    return punchesDTO;
-}
-
-function getUserById(userId) {
-    return _.find(users, (u) => {
-        return u.id === userId;
-    });
-}
-
-function getCompanyById(companyId) {
-    return _.find(companies, (c) => {
-        return c.id === companyId;
-    });
-}
 
 // Returns a list of all registered companies
 app.get('/api/companies', (req, res) => {
@@ -113,9 +80,10 @@ app.post('/api/companies', (req, res) => {
             // Check if the company id is in the response
             if (dbrs.insertedCount === 1 && dbrs.insertedIds[0]) {
                 res.status(201).send({'company_id' : dbrs.insertedIds[0]});
-            } else {
-                res.status(412).send('Only add one company at a time');
+                return;
             }
+            res.status(412).send('Only add one company at a time');
+            return;
         });
     } else {
         res.status(401).send('Admin token missing or incorrect');
@@ -129,14 +97,14 @@ app.get('/api/companies/:id', (req, res) => {
     db.getCompanyById(id, (err, company) => {
         if (err) {
             res.status(404).send('Company not found.');
-        } else {
-            console.log('Company: ', company);
-            if (company) {
-                res.status(200).send(company);
-            } else {
-                res.status(404).send('Company not found.');
-            }
+            return;
         }
+        console.log('Company: ', company);
+        if (company) {
+            res.status(200).send(company);
+            return;
+        }
+        res.status(404).send('Company not found.');
     });
 });
 
@@ -186,69 +154,65 @@ app.post('/api/users', (req, res) => {
     });
 });
 
-// Returns a list of all punches registered for the given user.
-app.get('/api/users/:id/punches', (req, res) => {
-    const id = parseInt(req.params.id);
-    const user = getUserById(id);
-    if (user) {
-        if (req.query.company) {
-            const companyId = parseInt(req.query.company);
-            const userPunches = _.filter(punches, {'userId': id, 'companyId': companyId});
-            res.status(200).send(getUserPunchesDTO(userPunches));
-        } else {
-            const userPunches = _.filter(punches, 'userId', id);
-            res.status(200).send(getUserPunchesDTO(userPunches));
-        }
-    } else {
-        res.status(404).send('User not found.');
-    }
-});
-
 // Adds a new punch to the user account.
-app.post('/api/users/:id/punches', (req, res) => {
-    const id = parseInt(req.params.id);
-    const user = getUserById(id);
-    if (user) {
-        if(!req.body.hasOwnProperty('companyId')){
-            res.status(412).send('Missing attribute company id!');
+app.post('/api/punchcard/:company_id', (req, res) => {
+    const company_id = req.params.company_id;
+    db.getCompanyById(company_id, (err, company) => {
+        if (err) {
+            res.status(500).send('Error getting company.');
+            return;
         }
-        const companyId = req.body.companyId;
-        const company = getCompanyById(companyId);
-        if (company) {
-            let nextId = punches.length;
-            punches.push({
-                id : nextId,
-                userId : id,
-                companyId : companyId,
-                date : Date.now()
+        // Check if the company exsist
+        if (!company) {
+            res.status(404).send('Company not found.');
+            return;
+        }
+        // Check if the token header is set
+        if (!req.header.hasOwnProperty('token')) {
+            const userToken = req.header.token;
+            db.getUserByToken(userToken, (err, user) => {
+                if (err) {
+                    res.status(500).send('Error when checking user token');
+                    return;
+                }
+                if (!user) {
+                    res.status(401).send('User not found with provided token');
+                    return;
+                }
+                const user_id = user._id;
+                // Check if the punch exsist for the current user for the given company.
+                db.getPunchByUserAndCompany(user_id, company_id, (err, punch) => {
+                    if (err) {
+                        res.status(500).send('Error when checking for punch');
+                        return;
+                    }
+                    if (punch) {
+                        res.status(409).send('User already has a punchcard for the given company');
+                        return;
+                    }
+                    // Create a punch object
+                    const newPunch = {
+                        company_id : company_id,
+                        user_id : user_id,
+                        created : new Date()
+                    };
+                    // Add punch to database
+                    db.addPunch(newPunch, (err, dbrs) => {
+                        if (err) {
+                            res.status(500).send('Error when adding punch');
+                            return;
+                        }
+                        if (dbrs.insertedCount === 1 && dbrs.insertedIds[0]) {
+                            res.status(201).send({'punch_id' : dbrs.insertedIds[0]});
+                            return;
+                        }
+                        res.status(412).send('Only add one punch at a time');
+                    });
+                });
             });
-            res.status(201).send(url + '/users/'+ id + '/punches/' + nextId);
-        } else {
-            res.status(412).send('Company not found.');
         }
-    } else {
-        res.status(404).send('User not found.');
-    }
+    });
 });
-
-app.get('/api/users/:userId/punches/:punchId', (req, res) => {
-    const userId = parseInt(req.params.userId);
-    const user = getUserById(userId);
-    if (user) {
-        const punchId = parseInt(req.params.punchId);
-        const punch = _.find(punches, (p) => {
-            return p.id === punchId;
-        });
-        if (punch) {
-            res.status(200).send(punch);
-        } else {
-            res.status(404).send('Punch not found.');
-        }
-    } else {
-        res.status(404).send('User not found.');
-    }
-});
-
 
 // Run the server
 app.listen(port, () => {
