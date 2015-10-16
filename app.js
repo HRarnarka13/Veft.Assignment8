@@ -113,7 +113,23 @@ const getUsers = (cb) => {
 
 const addUser = (user, cb) => {
     MongoClient.connect(url, (err, db) => {
+        if (err) {
+            cb(err);
+            db.close();
+            return;
+        }
 
+        const collection = db.collection('users');
+        collection.insert(user, (err, res) => {
+            if (err) {
+                cb(err);
+                db.close();
+                return;
+            }
+            cb(null, res);
+            db.close();
+            return;
+        });
     });
 };
 // </USERS>
@@ -124,4 +140,5 @@ module.exports = {
     addCompany : addCompany,
     removeAllCompanies : removeAllCompanies,
     getUsers : getUsers,
+    addUser : addUser,
 };

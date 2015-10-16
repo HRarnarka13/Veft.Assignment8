@@ -47,9 +47,9 @@ function getCompanyById(companyId) {
 app.get('/api/companies', (req, res) => {
     db.getCompanies((err, companies) => {
         if (err) {
-            res.status('500').send('ERROR');
+            res.status(500).send('ERROR');
         } else {
-            res.status('200').send(companies);
+            res.status(200).send(companies);
         }
     });
 });
@@ -59,9 +59,9 @@ app.get('/api/companies', (req, res) => {
 app.delete('/api/companies', (req, res) => {
     db.removeAllCompanies((err) => {
         if (err) {
-            res.status('500').send(err);
+            res.status(500).send(err);
         } else {
-            res.status('204').send('Removed all companies');
+            res.status(204).send('Removed all companies');
         }
     });
 });
@@ -69,15 +69,15 @@ app.delete('/api/companies', (req, res) => {
 // Adds a new company
 app.post('/api/companies', (req, res) => {
     if (!req.body.hasOwnProperty('name')) {
-        res.status('412').send('missing attribute: name');
+        res.status(412).send('missing attribute: name');
         return;
     }
     if (!req.body.hasOwnProperty('description')) {
-        res.status('412').send('missing attribute: description');
+        res.status(412).send('missing attribute: description');
         return;
     }
     if (!req.body.hasOwnProperty('punchcard_liftime')) {
-        res.status('412').send('missing attribute: punchcard_liftime');
+        res.status(412).send('missing attribute: punchcard_liftime');
         return;
     }
 
@@ -87,10 +87,13 @@ app.post('/api/companies', (req, res) => {
         punchcard_liftime: req.body.punchcard_liftime
     };
     db.addCompany(company, (err, dbrs) => {
-        console.log(err);
+        if (err) {
+            res.status(500).send('Error adding company');
+            return;
+        }
         console.log(dbrs);
+        res.status(201).send(dbrs.insertedIds);
     });
-    res.status('201').send();
 });
 
 // Returns a given company by id.
@@ -99,13 +102,13 @@ app.get('/api/companies/:id', (req, res) => {
     console.log('ID', id);
     db.getCompanyById(id, (err, company) => {
         if (err) {
-            res.status('404').send('Company not found.');
+            res.status(404).send('Company not found.');
         } else {
             console.log('Company: ', company);
             if (company) {
-                res.status('200').send(company);
+                res.status(200).send(company);
             } else {
-                res.status('404').send('Company not found.');
+                res.status(404).send('Company not found.');
             }
         }
     });
@@ -115,34 +118,46 @@ app.get('/api/companies/:id', (req, res) => {
 app.get('/api/users', (req,res) => {
     db.getUsers((err, users) => {
         if (err) {
-            res.status('500').send('Cannot get users');
-        } else {
-            res.status('200').send(users);
+            res.status(500).send('Cannot get users');
+            return;
         }
+        res.status(200).send(users);
     });
 });
 
 // Adds a new user to the system
 app.post('/api/users', (req, res) => {
     if (!req.body.hasOwnProperty('name')) {
-        res.status('412').send('Missing attribute: name');
+        res.status(412).send('Missing attribute: name');
         return;
     }
-    if (!req.body.hasOwnProperty('email')) {
-        res.status('412').send('Missing attribute: email');
+    if (!req.body.hasOwnProperty('token')) {
+        res.status(412).send('Missing attribute: token');
+        return;
+    }
+    if (!req.body.hasOwnProperty('age')) {
+        res.status(412).send('Missing attribute: age');
+        return;
+    }
+    if (!req.body.hasOwnProperty('gender')) {
+        res.status(412).send('Missing attribute: gender');
         return;
     }
 
-    users.push({
+    const user = {
         name : req.body.name,
         token : req.body.token,
         age : req.body.age,
         gender : req.body.gender
+    };
+
+    db.addUser(user, (err, dbrs) => {
+        if (err) {
+            res.status(500).send('Error adding user');
+            return;
+        }
+        res.status(201).send(dbrs.insertedIds);
     });
-
-    
-
-    res.status('201').send();
 });
 
 // Returns a list of all punches registered for the given user.
@@ -153,13 +168,13 @@ app.get('/api/users/:id/punches', (req, res) => {
         if (req.query.company) {
             const companyId = parseInt(req.query.company);
             const userPunches = _.filter(punches, {'userId': id, 'companyId': companyId});
-            res.status('200').send(getUserPunchesDTO(userPunches));
+            res.status(200).send(getUserPunchesDTO(userPunches));
         } else {
             const userPunches = _.filter(punches, 'userId', id);
-            res.status('200').send(getUserPunchesDTO(userPunches));
+            res.status(200).send(getUserPunchesDTO(userPunches));
         }
     } else {
-        res.status('404').send('User not found.');
+        res.status(404).send('User not found.');
     }
 });
 
@@ -181,12 +196,12 @@ app.post('/api/users/:id/punches', (req, res) => {
                 companyId : companyId,
                 date : Date.now()
             });
-            res.status('201').send(url + '/users/'+ id + '/punches/' + nextId);
+            res.status(201).send(url + '/users/'+ id + '/punches/' + nextId);
         } else {
-            res.status('412').send('Company not found.');
+            res.status(412).send('Company not found.');
         }
     } else {
-        res.status('404').send('User not found.');
+        res.status(404).send('User not found.');
     }
 });
 
@@ -199,12 +214,12 @@ app.get('/api/users/:userId/punches/:punchId', (req, res) => {
             return p.id === punchId;
         });
         if (punch) {
-            res.status('200').send(punch);
+            res.status(200).send(punch);
         } else {
-            res.status('404').send('Punch not found.');
+            res.status(404).send('Punch not found.');
         }
     } else {
-        res.status('404').send('User not found.');
+        res.status(404).send('User not found.');
     }
 });
 
