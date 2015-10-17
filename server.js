@@ -3,6 +3,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const db = require('./app.js');
+const uuid = require('node-uuid');
 const port = 3000;
 const app = express();
 
@@ -169,48 +170,51 @@ app.post('/api/punchcard/:company_id', (req, res) => {
         }
         // Check if the token header is set
         if (!req.header.hasOwnProperty('token')) {
-            const userToken = req.header.token;
-            db.getUserByToken(userToken, (err, user) => {
+            res.status(401).send('Token not set');
+            return;
+        }
+        const userToken = req.header.token;
+        console.log('TOKEN!!!', userToken);
+        db.getUserByToken(userToken, (err, user) => {
+            if (err) {
+                res.status(500).send('Error when checking user token');
+                return;
+            }
+            if (!user) {
+                res.status(401).send('User not found with provided token');
+                return;
+            }
+            const user_id = user._id;
+            // Check if the punch exsist for the current user for the given company.
+            db.getPunchByUserAndCompany(user_id, company_id, (err, punch) => {
                 if (err) {
-                    res.status(500).send('Error when checking user token');
+                    res.status(500).send('Error when checking for punch');
                     return;
                 }
-                if (!user) {
-                    res.status(401).send('User not found with provided token');
+                if (punch) {
+                    res.status(409).send('User already has a punchcard for the given company');
                     return;
                 }
-                const user_id = user._id;
-                // Check if the punch exsist for the current user for the given company.
-                db.getPunchByUserAndCompany(user_id, company_id, (err, punch) => {
+                // Create a punch object
+                const newPunch = {
+                    company_id : company_id,
+                    user_id : user_id,
+                    created : new Date()
+                };
+		// Add punch to database
+                db.addPunch(newPunch, (err, dbrs) => {
                     if (err) {
-                        res.status(500).send('Error when checking for punch');
+                        res.status(500).send('Error when adding punch');
                         return;
                     }
-                    if (punch) {
-                        res.status(409).send('User already has a punchcard for the given company');
+                    if (dbrs.insertedCount === 1 && dbrs.insertedIds[0]) {
+                        res.status(201).send({'punch_id' : dbrs.insertedIds[0]});
                         return;
                     }
-                    // Create a punch object
-                    const newPunch = {
-                        company_id : company_id,
-                        user_id : user_id,
-                        created : new Date()
-                    };
-                    // Add punch to database
-                    db.addPunch(newPunch, (err, dbrs) => {
-                        if (err) {
-                            res.status(500).send('Error when adding punch');
-                            return;
-                        }
-                        if (dbrs.insertedCount === 1 && dbrs.insertedIds[0]) {
-                            res.status(201).send({'punch_id' : dbrs.insertedIds[0]});
-                            return;
-                        }
-                        res.status(412).send('Only add one punch at a time');
-                    });
+                    res.status(412).send('Only add one punch at a time');
                 });
             });
-        }
+        });
     });
 });
 
