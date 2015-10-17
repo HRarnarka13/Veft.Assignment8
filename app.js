@@ -21,6 +21,7 @@ const getCompanies = (cb) => {
                 db.close();
                 return;
             }
+            console.log('COMPANIES', companies);
             cb(null, companies);
             db.close();
             return;

@@ -58,11 +58,11 @@ app.post('/api/companies', (req, res) => {
             res.status(412).send('invalid type for attribute description');
             return;
         }
-        if (!req.body.hasOwnProperty('punchcard_liftime')) {
-            res.status(412).send('missing attribute: punchcard_liftime');
+        if (!req.body.hasOwnProperty('punchcard_lifetime')) {
+            res.status(412).send('missing attribute: punchcard_lifetime');
             return;
-        } else if (typeof req.body.punchcard_liftime !== 'number' && req.body.punchcard_liftime instanceof Number === false) {
-            res.status(412).send('invalid type for attribute punchcard_liftime');
+        } else if (typeof req.body.punchcard_lifetime !== 'number' && req.body.punchcard_lifetime instanceof Number === false) {
+            res.status(412).send('invalid type for attribute punchcard_lifetime');
             return;
         }
 
@@ -70,7 +70,7 @@ app.post('/api/companies', (req, res) => {
         let company = {
             name: req.body.name,
             description: req.body.description,
-            punchcard_liftime: req.body.punchcard_liftime
+            punchcard_lifetime: req.body.punchcard_lifetime
         };
         // Add the new company to database
         db.addCompany(company, (err, dbrs) => {
@@ -126,10 +126,6 @@ app.post('/api/users', (req, res) => {
         res.status(412).send('Missing attribute: name');
         return;
     }
-    if (!req.body.hasOwnProperty('token')) {
-        res.status(412).send('Missing attribute: token');
-        return;
-    }
     if (!req.body.hasOwnProperty('age')) {
         res.status(412).send('Missing attribute: age');
         return;
@@ -138,10 +134,13 @@ app.post('/api/users', (req, res) => {
         res.status(412).send('Missing attribute: gender');
         return;
     }
+    if (!req.headers.hasOwnProperty('token')) {
+        res.status(401).send('Token not set');
+    }
 
     const user = {
         name : req.body.name,
-        token : req.body.token,
+        token : req.headers.token,
         age : req.body.age,
         gender : req.body.gender
     };
@@ -151,7 +150,12 @@ app.post('/api/users', (req, res) => {
             res.status(500).send('Error adding user');
             return;
         }
-        res.status(201).send(dbrs.insertedIds);
+        // Check if the company id is in the response
+        if (dbrs.insertedCount === 1 && dbrs.insertedIds[0]) {
+            res.status(201).send({'company_id' : dbrs.insertedIds[0]});
+            return;
+        }
+        res.status(412).send('Only add one user at a time');
     });
 });
 
@@ -169,11 +173,11 @@ app.post('/api/punchcard/:company_id', (req, res) => {
             return;
         }
         // Check if the token header is set
-        if (!req.header.hasOwnProperty('token')) {
+        if (!req.headers.hasOwnProperty('token')) {
             res.status(401).send('Token not set');
             return;
         }
-        const userToken = req.header.token;
+        const userToken = req.headers.token;
         console.log('TOKEN!!!', userToken);
         db.getUserByToken(userToken, (err, user) => {
             if (err) {
