@@ -1,39 +1,51 @@
 'use strict';
 
+// Node models
 const express = require('express');
 const bodyParser = require('body-parser');
-const db = require('./app.js');
-const uuid = require('node-uuid');
+const mongoose = require('mongoose');
+
+// module files
+const models = require('./models.js');
+
 const port = 3000;
 const app = express();
 
 // const url = 'http://localhost:' + port + '/api';
-
 const adminToken = 'rssiprmp';
 
+// Connect mongoose and then run the server.
+mongoose.connect('localhost/app');
+mongoose.connection.once('open', () => {
+    console.log('Mongoose is connected.');
+    // Run the server
+    app.listen(port, () => {
+        console.log('Server is on port', port);
+    });
+});
 
 app.use(bodyParser.json());
 
 // Returns a list of all registered companies
 app.get('/api/companies', (req, res) => {
-    db.getCompanies((err, companies) => {
+    models.Company.find({}, (err, docs) => {
         if (err) {
             res.status(500).send('ERROR');
-        } else {
-            res.status(200).send(companies);
+            return;
         }
+        res.status(200).send(docs);
     });
 });
 
 // Removes all companies in the database
 // NOTE: just for testing
 app.delete('/api/companies', (req, res) => {
-    db.removeAllCompanies((err) => {
+    models.Company.remove({}, (err) => {
         if (err) {
             res.status(500).send(err);
-        } else {
-            res.status(204).send('Removed all companies');
+            return;
         }
+        res.status(204).send('Removed all companies');
     });
 });
 
@@ -43,132 +55,106 @@ app.post('/api/companies', (req, res) => {
     // Check if the admin token is set and correct
     if (req.headers.hasOwnProperty('admin_token') && req.headers.admin_token === adminToken)
     {
-        // Check if the requst body attributes are correct and their types are correct
-        if (!req.body.hasOwnProperty('name')) {
-            res.status(412).send('missing attribute: name');
-            return;
-        } else if (typeof req.body.name !== 'string' && req.body.name instanceof String === false) {
-            res.status(412).send('invalid type for attribute name');
-            return;
-        }
-        if (!req.body.hasOwnProperty('description')) {
-            res.status(412).send('missing attribute: description');
-            return;
-        } else if (typeof req.body.description !== 'string' && req.body.description instanceof String === false) {
-            res.status(412).send('invalid type for attribute description');
-            return;
-        }
-        if (!req.body.hasOwnProperty('punchcard_lifetime')) {
-            res.status(412).send('missing attribute: punchcard_lifetime');
-            return;
-        } else if (typeof req.body.punchcard_lifetime !== 'number' && req.body.punchcard_lifetime instanceof Number === false) {
-            res.status(412).send('invalid type for attribute punchcard_lifetime');
-            return;
-        }
-
-        // Create a company object
-        let company = {
-            name: req.body.name,
-            description: req.body.description,
-            punchcard_lifetime: req.body.punchcard_lifetime
-        };
-        // Add the new company to database
-        db.addCompany(company, (err, dbrs) => {
+        const company = new models.Company(req.body);
+        // Validate company
+        company.validate((err) => {
             if (err) {
-                res.status(500).send('Error accured when adding company');
+                console.log('ERROR company: ', err.message);
+                res.status(412).send(err.message);
                 return;
             }
-            // Check if the company id is in the response
-            if (dbrs.insertedCount === 1 && dbrs.insertedIds[0]) {
-                res.status(201).send({'company_id' : dbrs.insertedIds[0]});
+            // Save company to database
+            company.save((err, docs) => {
+                if (err) {
+                    res.status(500).send(err);
+                    return;
+                }
+                // Return
+                res.status(201).send({ 'company_id' : docs._id });
                 return;
-            }
-            res.status(412).send('Only add one company at a time');
-            return;
+            });
         });
     } else {
         res.status(401).send('Admin token missing or incorrect');
+        return;
     }
 });
 
 // Returns a given company by id.
 app.get('/api/companies/:id', (req, res) => {
     const id = req.params.id;
-    console.log('ID', id);
-    db.getCompanyById(id, (err, company) => {
+    // Find the user by id
+    models.Company.findOne({ '_id' : id }, (err, docs) => {
         if (err) {
-            res.status(404).send('Company not found.');
+            res.status(500).send('Error getting user.');
             return;
         }
-        console.log('Company: ', company);
-        if (company) {
-            res.status(200).send(company);
+        if (!docs) {
+            res.status(404).send('User not found.');
             return;
         }
-        res.status(404).send('Company not found.');
+        res.status(200).send(docs);
     });
 });
 
 // Returns a list of all users
 app.get('/api/users', (req,res) => {
-    db.getUsers((err, users) => {
+    models.User.find({}, (err, docs) => {
         if (err) {
-            res.status(500).send('Cannot get users');
+            res.status(500).send('Error, cannot get users');
             return;
         }
-        res.status(200).send(users);
+        res.status(200).send(docs.map((val) => { val.token = undefined; return val; }));
+    });
+});
+
+// Get user by id
+app.get('/api/users/:id', (req,res) => {
+    const id = req.params.id;
+    models.User.findOne({ '_id' : id }, (err, docs) => {
+        if (err) {
+            res.status(500).send('Error, cannot get user');
+            return;
+        }
+        if (!docs) {
+            res.status(404).send('User not found');
+            return;
+        }
+        res.status(200).send(docs);
     });
 });
 
 // Adds a new user to the system
 app.post('/api/users', (req, res) => {
-    if (!req.body.hasOwnProperty('name')) {
-        res.status(412).send('Missing attribute: name');
-        return;
-    }
-    if (!req.body.hasOwnProperty('age')) {
-        res.status(412).send('Missing attribute: age');
-        return;
-    }
-    if (!req.body.hasOwnProperty('gender')) {
-        res.status(412).send('Missing attribute: gender');
-        return;
-    }
-    if (!req.headers.hasOwnProperty('token')) {
-        res.status(401).send('Token not set');
-    }
-
-    const user = {
-        name : req.body.name,
-        token : req.headers.token,
-        age : req.body.age,
-        gender : req.body.gender
-    };
-
-    db.addUser(user, (err, dbrs) => {
+    const user = new models.User(req.body);
+    user.validate((err) => {
         if (err) {
-            res.status(500).send('Error adding user');
+            res.status(412).send(err);
             return;
         }
-        // Check if the company id is in the response
-        if (dbrs.insertedCount === 1 && dbrs.insertedIds[0]) {
-            res.status(201).send({'company_id' : dbrs.insertedIds[0]});
-            return;
-        }
-        res.status(412).send('Only add one user at a time');
+        user.save((err,docs) => {
+            if (err) {
+                res.status(500).send('Error, adding user');
+                return;
+            }
+            res.status(201).send(docs);
+        });
     });
 });
 
 // Adds a new punch to the user account.
-app.post('/api/punchcard/:company_id', (req, res) => {
+app.post('/api/punchcards/:company_id', (req, res) => {
     const company_id = req.params.company_id;
-    db.getCompanyById(company_id, (err, company) => {
+
+    models.Company.findOne({ '_id' : company_id }, (err, company) => {
         if (err) {
+            console.log('comapany error ', err);
             res.status(500).send('Error getting company.');
             return;
         }
         // Check if the company exsist
         if (!company) {
+            console.log('company not found');
             res.status(404).send('Company not found.');
             return;
         }
@@ -177,9 +163,9 @@ app.post('/api/punchcard/:company_id', (req, res) => {
             res.status(401).send('Token not set');
             return;
         }
+        // Get the user token from header
         const userToken = req.headers.token;
-        console.log('TOKEN!!!', userToken);
-        db.getUserByToken(userToken, (err, user) => {
+        models.User.findOne({ 'token' : userToken }, (err, user) => {
             if (err) {
                 res.status(500).send('Error when checking user token');
                 return;
@@ -189,40 +175,28 @@ app.post('/api/punchcard/:company_id', (req, res) => {
                 return;
             }
             const user_id = user._id;
-            // Check if the punch exsist for the current user for the given company.
-            db.getPunchByUserAndCompany(user_id, company_id, (err, punch) => {
+
+            models.Punchcard.findOne({ 'user_id' : user_id, 'company_id' : company_id }, (err, punchcard) =>{
                 if (err) {
                     res.status(500).send('Error when checking for punch');
                     return;
                 }
-                if (punch) {
+                if (punchcard) {
                     res.status(409).send('User already has a punchcard for the given company');
                     return;
                 }
-                // Create a punch object
-                const newPunch = {
-                    company_id : company_id,
-                    user_id : user_id,
-                    created : new Date()
-                };
-		// Add punch to database
-                db.addPunch(newPunch, (err, dbrs) => {
+                const new_punchcard = new models.Punchcard({
+                    'user_id' : user_id,
+                    'company_id' : company_id,
+                });
+                new_punchcard.save((err, punch) => {
                     if (err) {
                         res.status(500).send('Error when adding punch');
                         return;
                     }
-                    if (dbrs.insertedCount === 1 && dbrs.insertedIds[0]) {
-                        res.status(201).send({'punch_id' : dbrs.insertedIds[0]});
-                        return;
-                    }
-                    res.status(412).send('Only add one punch at a time');
+                    res.status(201).send({ 'punch_id' : punch._id });
                 });
             });
         });
     });
-});
-
-// Run the server
-app.listen(port, () => {
-    console.log('Server is on port', port);
 });
