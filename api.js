@@ -119,13 +119,11 @@ api.post('/punchcards/:company_id', (req, res) => {
 
     models.Company.findOne({ '_id' : company_id }, (err, company) => {
         if (err) {
-            console.log('comapany error ', err);
             res.status(500).send('Error getting company.');
             return;
         }
         // Check if the company exsist
         if (!company) {
-            console.log('company not found');
             res.status(404).send('Company not found.');
             return;
         }
@@ -145,11 +143,11 @@ api.post('/punchcards/:company_id', (req, res) => {
                 res.status(401).send('User not found with provided token');
                 return;
             }
-            const user_id = user._id;
 
+            const user_id = user._id; // Get the user id
             models.Punchcard.findOne({ 'user_id' : user_id, 'company_id' : company_id }, (err, punchcard) =>{
                 if (err) {
-                    res.status(500).send('Error when checking for punch');
+                    res.status(500).send('Error when getting punchcard');
                     return;
                 }
                 if (punchcard) {
